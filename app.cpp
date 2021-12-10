@@ -1,12 +1,24 @@
 #include "app.hpp"
 
+// libs
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
+
 #include <stdexcept>
 #include <cassert>
 
 namespace engine {
 
+    struct SimplePushContantData{
+        glm::mat2 transform{1.0f};
+        glm::vec2 offset;
+        alignas(16) glm::vec3 color;
+    };
+
     App::App() {
-        loadModels();
+        loadGameObjects();
         createPipelineLayout();
         recreateSwapchain();
         createCommandBuffers();
@@ -24,21 +36,48 @@ namespace engine {
         vkDeviceWaitIdle(device.device());
     }
 
-    void App::loadModels() {
+    void App::loadGameObjects() {
         std::vector<Model::Vertex> vertices {
             {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
             {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
             {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};        
-        model = std::make_unique<Model>(device, vertices);
+        auto model = std::make_shared<Model>(device, vertices);
+        
+        std::vector<glm::vec3> colors{
+            {1.f, .7f, .73f},
+            {1.f, .87f, .73f},
+            {1.f, 1.f, .73f},
+            {.73f, 1.f, .8f},
+            {.73, .88f, 1.f}  //
+        };
+        for (auto& color : colors) {
+            color = glm::pow(color, glm::vec3{2.2f});
+        }
+
+        for (int i = 0; i < 40; i++) {
+            auto triangle = GameObject::createGameobject();
+            triangle.model = model;
+            triangle.color = colors[i % colors.size()];
+            triangle.transform2d.scale = glm::vec2(.5f) + i * 0.025f;
+            triangle.transform2d.rotation = i * glm::pi<float>() * .025f;
+
+            gameObjects.push_back(std::move(triangle));
+        }
     }
 
     void App::createPipelineLayout() {
+
+        VkPushConstantRange pushConstantRange{};
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = sizeof(SimplePushContantData);
+
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 0;
         pipelineLayoutInfo.pSetLayouts = nullptr;
-        pipelineLayoutInfo.pushConstantRangeCount = 0;
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
         if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -134,13 +173,33 @@ namespace engine {
         vkCmdSetViewport(commandBuffers[imageIndex], 0, 1, &viewport);
         vkCmdSetScissor(commandBuffers[imageIndex], 0, 1, &scissor);
 
-        pipeline->bind(commandBuffers[imageIndex]);
-        model->bind(commandBuffers[imageIndex]);
-        model->draw(commandBuffers[imageIndex]);
+        renderGameObjects(commandBuffers[imageIndex]);
 
         vkCmdEndRenderPass(commandBuffers[imageIndex]);
         if (vkEndCommandBuffer(commandBuffers[imageIndex]) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer!");
+        }
+    }
+
+    void App::renderGameObjects(VkCommandBuffer commandBuffer) {
+        int i = 0;
+        for (auto& obj : gameObjects) {
+            i += 1;
+            obj.transform2d.rotation =
+                glm::mod<float>(obj.transform2d.rotation + 0.001f * i, 2.f * glm::pi<float>());
+        }
+
+        pipeline->bind(commandBuffer);
+
+        for (auto &obj : gameObjects) {
+            SimplePushContantData push{};
+            push.offset = obj.transform2d.translation;
+            push.color = obj.color;
+            push.transform = obj.transform2d.mat2();
+
+            vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SimplePushContantData), &push);
+            obj.model->bind(commandBuffer);
+            obj.model->draw(commandBuffer);
         }
     }
 
