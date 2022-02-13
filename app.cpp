@@ -51,7 +51,7 @@ namespace engine {
             color = glm::pow(color, glm::vec3{2.2f});
         }
 
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < 60; i++) {
             auto triangle = GameObject::createGameobject();
             triangle.model = model;
             triangle.color = colors[i % colors.size()];
