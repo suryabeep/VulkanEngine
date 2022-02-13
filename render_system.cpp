@@ -12,8 +12,7 @@
 namespace engine {
 
     struct SimplePushContantData{
-        glm::mat2 transform{1.0f};
-        glm::vec2 offset;
+        glm::mat4 transform{1.0f};
         alignas(16) glm::vec3 color;
     };
 
@@ -56,25 +55,39 @@ namespace engine {
         pipeline = std::make_unique<Pipeline>(device, "shaders/simple_vert.spv", "shaders/simple_frag.spv", pipelineConfig);
     }
 
-    void RenderSystem::renderGameObjects(VkCommandBuffer commandBuffer, std::vector<GameObject> &gameObjects) {
+    void RenderSystem::renderGameObjects(VkCommandBuffer commandBuffer, std::vector<GameObject> &gameObjects, const Camera &camera) {
+        pipeline->bind(commandBuffer);
+        
+        auto projectionView = camera.getProjectionMatrix() * camera.getViewMatrix();
+
         int i = 0;
         for (auto& obj : gameObjects) {
             i += 1;
-            obj.transform2d.rotation =
-                glm::mod<float>(obj.transform2d.rotation + 0.001f * i, 2.f * glm::pi<float>());
-        }
+            obj.transform.rotation.y =
+                glm::mod<float>(obj.transform.rotation.y + 0.01f * i, 2.f * glm::pi<float>());
+            obj.transform.rotation.x =
+                glm::mod<float>(obj.transform.rotation.x + 0.01f * i, glm::pi<float>());
 
-        pipeline->bind(commandBuffer);
-
-        for (auto &obj : gameObjects) {
             SimplePushContantData push{};
-            push.offset = obj.transform2d.translation;
             push.color = obj.color;
-            push.transform = obj.transform2d.mat2();
+            push.transform = projectionView * obj.transform.mat4();
 
-            vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SimplePushContantData), &push);
+            vkCmdPushConstants(
+                commandBuffer, 
+                pipelineLayout, 
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 
+                0, 
+                sizeof(SimplePushContantData), 
+                &push);
+
             obj.model->bind(commandBuffer);
             obj.model->draw(commandBuffer);
+        }
+
+
+
+        for (auto &obj : gameObjects) {
+            
         }
     }
 }   // namespace engines

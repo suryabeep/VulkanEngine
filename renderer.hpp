@@ -25,6 +25,7 @@ class Renderer {
         void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
         VkRenderPass getSwapchainRenderPass() const { return swapchain->getRenderPass(); }
+        float getAspectRatio() const { return swapchain->extentAspectRatio(); }
         bool isFrameInProgress() const { return isFrameStarted; }
         VkCommandBuffer getCurrentCommandBuffer() const  {
             assert(isFrameStarted && "Cannot get command buffer when frame is not in progress!");

@@ -19,46 +19,102 @@ namespace engine {
 
     void App::run() {
         RenderSystem simpleRenderSystem{device, renderer.getSwapchainRenderPass()};
+        Camera camera{};
+        // camera.setViewDirection(glm::vec3(0.0f), glm::vec3(0.5f, 0.0f, 1.0f));
+
+        glm::vec3 camPos(-1.0f, -2.0f, 2.0f);
+        uint frameNum = 0;
 
         while(!window.shouldClose()) {
             glfwPollEvents();
+
+            glm::vec3 position = camPos;
+            position.x *= sin(0.01 * frameNum);
+            position.y *= cos(0.01 * frameNum);
+
+            camera.setViewTarget(position, glm::vec3(0.0f, 0.0f, 2.5f));
+            float aspect = renderer.getAspectRatio();
+            // camera.setOrthographicProjection(-aspect, aspect, -1, 1, -1, 1);
+            camera.setPerspectiveProjection(glm::radians(50.0f), aspect, 0.1, 10);
             if (auto commandBuffer = renderer.beginFrame()) {
                 renderer.beginSwapChainRenderPass(commandBuffer);
-                simpleRenderSystem.renderGameObjects(commandBuffer, gameObjects);
+                simpleRenderSystem.renderGameObjects(commandBuffer, gameObjects, camera);
                 renderer.endSwapChainRenderPass(commandBuffer);
                 renderer.endFrame();
+                frameNum++;
             }
         }
 
         vkDeviceWaitIdle(device.device());
     }
 
-    void App::loadGameObjects() {
-        std::vector<Model::Vertex> vertices {
-            {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-            {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-            {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};        
-        auto model = std::make_shared<Model>(device, vertices);
-        
-        std::vector<glm::vec3> colors{
-            {1.f, .7f, .73f},
-            {1.f, .87f, .73f},
-            {1.f, 1.f, .73f},
-            {.73f, 1.f, .8f},
-            {.73, .88f, 1.f}  //
+    std::unique_ptr<Model> createCubeModel(Device& device, glm::vec3 offset) {
+        std::vector<Model::Vertex> vertices{
+
+            // left face (white)
+            {{-.5f, -.5f, -.5f}, {.9f, .9f, .9f}},
+            {{-.5f, .5f, .5f}, {.9f, .9f, .9f}},
+            {{-.5f, -.5f, .5f}, {.9f, .9f, .9f}},
+            {{-.5f, -.5f, -.5f}, {.9f, .9f, .9f}},
+            {{-.5f, .5f, -.5f}, {.9f, .9f, .9f}},
+            {{-.5f, .5f, .5f}, {.9f, .9f, .9f}},
+
+            // right face (yellow)
+            {{.5f, -.5f, -.5f}, {.8f, .8f, .1f}},
+            {{.5f, .5f, .5f}, {.8f, .8f, .1f}},
+            {{.5f, -.5f, .5f}, {.8f, .8f, .1f}},
+            {{.5f, -.5f, -.5f}, {.8f, .8f, .1f}},
+            {{.5f, .5f, -.5f}, {.8f, .8f, .1f}},
+            {{.5f, .5f, .5f}, {.8f, .8f, .1f}},
+
+            // top face (orange, remember y axis points down)
+            {{-.5f, -.5f, -.5f}, {.9f, .6f, .1f}},
+            {{.5f, -.5f, .5f}, {.9f, .6f, .1f}},
+            {{-.5f, -.5f, .5f}, {.9f, .6f, .1f}},
+            {{-.5f, -.5f, -.5f}, {.9f, .6f, .1f}},
+            {{.5f, -.5f, -.5f}, {.9f, .6f, .1f}},
+            {{.5f, -.5f, .5f}, {.9f, .6f, .1f}},
+
+            // bottom face (red)
+            {{-.5f, .5f, -.5f}, {.8f, .1f, .1f}},
+            {{.5f, .5f, .5f}, {.8f, .1f, .1f}},
+            {{-.5f, .5f, .5f}, {.8f, .1f, .1f}},
+            {{-.5f, .5f, -.5f}, {.8f, .1f, .1f}},
+            {{.5f, .5f, -.5f}, {.8f, .1f, .1f}},
+            {{.5f, .5f, .5f}, {.8f, .1f, .1f}},
+
+            // nose face (blue)
+            {{-.5f, -.5f, 0.5f}, {.1f, .1f, .8f}},
+            {{.5f, .5f, 0.5f}, {.1f, .1f, .8f}},
+            {{-.5f, .5f, 0.5f}, {.1f, .1f, .8f}},
+            {{-.5f, -.5f, 0.5f}, {.1f, .1f, .8f}},
+            {{.5f, -.5f, 0.5f}, {.1f, .1f, .8f}},
+            {{.5f, .5f, 0.5f}, {.1f, .1f, .8f}},
+
+            // tail face (green)
+            {{-.5f, -.5f, -0.5f}, {.1f, .8f, .1f}},
+            {{.5f, .5f, -0.5f}, {.1f, .8f, .1f}},
+            {{-.5f, .5f, -0.5f}, {.1f, .8f, .1f}},
+            {{-.5f, -.5f, -0.5f}, {.1f, .8f, .1f}},
+            {{.5f, -.5f, -0.5f}, {.1f, .8f, .1f}},
+            {{.5f, .5f, -0.5f}, {.1f, .8f, .1f}},
+
         };
-        for (auto& color : colors) {
-            color = glm::pow(color, glm::vec3{2.2f});
+        
+        for (auto& v : vertices) {
+            v.position += offset;
         }
+        
+        return std::make_unique<Model>(device, vertices);
+    }
 
-        for (int i = 0; i < 60; i++) {
-            auto triangle = GameObject::createGameobject();
-            triangle.model = model;
-            triangle.color = colors[i % colors.size()];
-            triangle.transform2d.scale = glm::vec2(.5f) + i * 0.025f;
-            triangle.transform2d.rotation = i * glm::pi<float>() * .025f;
+    void App::loadGameObjects() {
+        std::shared_ptr<Model> model = createCubeModel(device, glm::vec3{0.0f, 0.0f, 0.0f});
+        auto cube = GameObject::createGameobject();
+        cube.model = model;
+        cube.transform.translation = {0.0f, 0.0f, 2.5f};
+        cube.transform.scale = {0.5f, 0.5f, 0.5f};
 
-            gameObjects.push_back(std::move(triangle));
-        }
+        gameObjects.push_back(std::move(cube));
     }
 }   // namespace engines

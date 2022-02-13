@@ -1,5 +1,6 @@
 #pragma once
 
+#include "camera.hpp"
 #include "window.hpp"
 #include "device.hpp"
 #include "swap_chain.hpp"
